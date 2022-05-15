@@ -1,0 +1,9 @@
+ def find_dirty_spots():
+        dirty_spots=[]
+        for i in range(5):
+            for j in range(5):
+                if board[i][j] == 'd':
+                    dist = abs(spot[0]-posr)-abs(spot[1]-posc)
+                    dirty_spots.append([i,j,dist])
+        return dirty_spots
+    def backtrack(bx,by,target, distance_counter):

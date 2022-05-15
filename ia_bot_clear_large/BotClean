@@ -1,0 +1,39 @@
+#!/usr/bin/python
+
+# Head ends here
+
+def next_move(posr, posc, board):
+    def takeThird(elem):
+        return elem[2]
+    ##find closest dirty spot
+    dirty_spots=[]
+    for i in range(5):
+        for j in range(5):
+            if board[i][j] == 'd':
+                dirty_spots.append([i,j])
+    ##now that we have every position, calculate distance to positions
+    for spot in dirty_spots:
+        dist = abs(spot[0]-posr)-abs(spot[1]-posc)
+        spot.append(dist)
+    dirty_spots.sort(key=takeThird)
+    if len(dirty_spots) > 0:
+        destx, desty = dirty_spots[0][0], dirty_spots[0][1]
+        if destx ==posr and desty == posc:
+            print("CLEAN")
+            board[destx][desty] == '-'
+        elif destx < posr:
+            print("UP")
+        elif destx > posr:
+            print("DOWN")
+        elif desty < posc:
+            print("LEFT")
+        elif desty > posc:
+            print("RIGHT")
+        print("")
+
+# Tail starts here
+
+if __name__ == "__main__":
+    pos = [int(i) for i in input().strip().split()]
+    board = [[j for j in input().strip()] for i in range(5)]
+    next_move(pos[0], pos[1], board)
