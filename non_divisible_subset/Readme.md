@@ -16,7 +16,7 @@ Given two numbers A and B, natural numbers, if the sum of those numbers is evenl
 
 We can express this as:
 
-$\forall A,B,K,p,q \in \mathbb{Z} , p = (A\;mod\; K) \land q= (B \;mod\;K) \land \frac{A+B}{K}\in\mathbb{Z})\Rightarrow p + q = K \;\lor p+q = 0$
+$$\forall A,B,K,p,q \in \mathbb{Z} , p = (A mod K) \land q= (B mod K) \land \frac{A+B}{K}\in\mathbb{Z})\Rightarrow p + q = K \lor p+q = 0$$
 
 We need to count how many combinations of values we can make that will not result in a sum divisible by K. If we have K as a divisor, then the modulo can be from o to K -1. We count how many elements of the set fall in each possible modulo result. Then, we know that the sum of the combinations of certain sets will not work, this is, where p + q = K. So for these combinations, we count only one of the sets. If we express the p+q = K as p = K -q, we realize that p needs to grow from 1 and q needs to decrease from K:
 
