@@ -1,0 +1,31 @@
+With the append flag, the result adds up
+```
+./atomic_append f1 100000 x && ./atomic_append f1 100000 x
+argc: 4
+Append: 1
+Counter: 100000
+argc: 4
+Append: 1
+Counter: 100000
+$ ls -l f1
+-rw------- 1 200000 Nov 13 20:44 f1
+
+````
+
+Without:
+```
+$ ./atomic_append f2 100000 & ./atomic_append f2 100000
+[1] 9137
+argc: 3
+Append: 0
+Counter: 100000
+argc: 3
+Append: 0
+Counter: 100000
+[1]+  Done                    ./atomic_append f2 100000
+$ ls -l f2
+-rw------- 1 100619 Nov 13 20:45 f2
+```
+
+The difference is that the second one is just appending after the write but that is not atomic, which means that the two processes will many
+times overwrite some or most of the bytes. When the file is opened with the APPEND flag, every write always seeks first the end atomically alongside the write.
