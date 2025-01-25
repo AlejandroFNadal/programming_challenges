@@ -43,26 +43,25 @@ int ale_setenv(const char *name, const char *value, int overwrite) {
 }
 
 int ale_unsetenv(const char *name) {
-  char **env_pointer = environ;
-  char **second_env_pointer = environ;
-  while (*env_pointer != NULL) {
+  char **read_pointer = environ;
+  char **write_pointer = environ;
+  while (*read_pointer != NULL) {
     // obtain pointer to position of the char
-    char *equal = strchr(*env_pointer, '=');
+    char *equal = strchr(*read_pointer, '=');
     if (equal != NULL) {
       // pointer of pos - position of start
-      int len = equal - *env_pointer;
-      if (strncmp(name, *env_pointer, len) == 0) {
-        printf("envar analyzed is %s\n", *env_pointer);
-        env_pointer++;
-      } else {
-        *second_env_pointer = *env_pointer;
-        env_pointer++;
-        second_env_pointer++;
+      int len = equal - *read_pointer;
+      if (strncmp(name, *read_pointer, len) == 0) {
+        printf("envar analyzed is %s\n", *read_pointer);
+        read_pointer++;
+        continue;
       }
-    } else {
-      env_pointer++;
+      *write_pointer = *read_pointer;
+      read_pointer++;
+      write_pointer++;
     }
   }
+  *write_pointer = NULL; // I WAS MISSING THIS
   return 0;
 }
 // char *val = "TEST=TRUE";
