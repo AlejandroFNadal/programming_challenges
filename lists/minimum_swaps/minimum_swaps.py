@@ -3,7 +3,7 @@ def minimumSwaps(arr):
     #first we sort the array
     ordered_arr = sorted(arr)
     #now we compare the differences
-    # we load all the positions in a di
+    # we load all the positions in a dict
     hash_table = {}
     i=0
     for elem in arr:
@@ -17,10 +17,10 @@ def minimumSwaps(arr):
             pos_smallest_element = hash_table[smallest_elem]
             # we update the new position on the hash table of arr[i]
             hash_table[arr[i]] = pos_smallest_element
-            # delete first element of ordered_arr
             # we swap, most of the time we will have to do it, it makes no sense to check, there are no repeated elements
             arr[i], arr[pos_smallest_element] = arr[pos_smallest_element], arr[i]
             swaps+=1
+        # delete first element of ordered_arr
         ordered_arr.pop(0)
     return swaps
 

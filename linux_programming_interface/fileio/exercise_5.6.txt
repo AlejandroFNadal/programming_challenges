@@ -1,0 +1,6 @@
+First, write Hello
+then, world, ends up Helloworld
+the offset is reset, any write will overwrite stuff now.
+write HELLO, now the text contains HELLOworld
+File descriptor 3, which has offset 0, now writes Gidday
+so now it says : "Giddayorld"
