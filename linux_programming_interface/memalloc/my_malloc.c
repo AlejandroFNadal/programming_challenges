@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-// #include <sys/wait.h>
+#include <sys/wait.h>
 #include <unistd.h>
 /*
  * Author: Alejandro Nadal
@@ -48,6 +48,16 @@ const int FIRST_BLOCK_OFFSET = sizeof(area);
 
 char *heap_start = NULL;
 
+area *find_last_block() {
+  assert(heap_start != NULL);
+  my_stats *malloc_header = (my_stats *)heap_start;
+  assert(malloc_header->magical_bytes == MAGICAL_BYTES);
+  area *block = (area *)((char *)malloc_header + sizeof(my_stats));
+  while (block->next != NULL) {
+    block = block->next;
+  }
+  return block;
+}
 // Assumes that the magical bytes are at the beginning
 int *add_used_block(ssize_t size) {
   // long int *heap_start = &end;
@@ -76,12 +86,10 @@ int *add_used_block(ssize_t size) {
   // no big enough blocks.
   if (smallest_block == NULL) {
     sbrk(4096);
-    smallest_block =
-        (area *)((char *)last_block + sizeof(area) + last_block->length);
-    last_block->next = smallest_block;
-    smallest_block->prev = last_block;
-    smallest_block->next = NULL;
-    smallest_block->length = 4096 - sizeof(area);
+    // not working due to my very nice lock. Selflocked
+    area *last_block = find_last_block();
+    last_block->length += 4096;
+    return add_used_block(size);
   }
   // found a block
   if (smallest_block != NULL) {
@@ -128,7 +136,36 @@ int *an_malloc(ssize_t size) {
   return add_used_block(size);
 }
 
+void test_basic_malloc() {
+  void *ptr = an_malloc(1);
+  area *first_block = ptr - sizeof(area);
+  assert(first_block->marker == BLOCK_MARKER);
+}
+
+void test_bigger_than_available_malloc() {
+  void *ptr = an_malloc(5000);
+  area *first_block = ptr - sizeof(area);
+  assert(first_block->marker == BLOCK_MARKER);
+}
+
+void call_test(void (*test_func)(), const char *msg) {
+  pid_t pid = fork();
+  if (pid == 0) {
+    test_func();
+    exit(0);
+  } else {
+    int status;
+    waitpid(pid, &status, 0);
+    if (WIFSIGNALED(status)) {
+      printf("%s crashed with signal %d\n", msg, WTERMSIG(status));
+    } else {
+      printf("%s passed\n", msg);
+    }
+  }
+}
 int main() {
-  an_malloc(1);
+  // call_test(test_basic_malloc, "Basic Malloc");
+  // call_test(test_bigger_than_available_malloc, "Request more memory Malloc");
+  test_bigger_than_available_malloc();
   debug_log("DONE");
 }
