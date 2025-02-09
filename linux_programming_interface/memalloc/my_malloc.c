@@ -25,7 +25,7 @@
  */
 
 void debug_log(const char *msg) { write(STDOUT_FILENO, msg, strlen(msg)); }
-extern long int etext, edata, end;
+// extern long int etext, edata, end;
 struct free_area {
   uint8_t marker;
   struct free_area *prev;
@@ -45,26 +45,110 @@ typedef struct free_area area;
 const int MAGICAL_BYTES = 0x55;
 const int BLOCK_MARKER = 0xDD;
 const int FIRST_BLOCK_OFFSET = sizeof(area);
+const int PAGE_SIZE = 4096;
 
 char *heap_start = NULL;
 
-area *find_last_block() {
+area *find_last_block();
+
+my_stats *get_malloc_header() {
   assert(heap_start != NULL);
   my_stats *malloc_header = (my_stats *)heap_start;
   assert(malloc_header->magical_bytes == MAGICAL_BYTES);
+  return malloc_header;
+}
+
+area *find_previous_used_block(area *ptr) {
+  area *mov_ptr = ptr;
+  while (mov_ptr->prev != NULL) {
+    mov_ptr = mov_ptr->prev;
+    if (mov_ptr->in_use == true) {
+      return mov_ptr;
+    }
+  }
+  return NULL;
+}
+
+void reduce_heap_size_if_possible() {
+  area *last_block = find_last_block();
+  area *prev_used_block = find_previous_used_block(last_block);
+  if (prev_used_block == NULL) {
+    // It is the only block, which should never be deleted. We
+    // could only reduce its size to 1 Page
+    if (last_block->length > PAGE_SIZE) {
+      last_block->length = PAGE_SIZE;
+    }
+    prev_used_block = last_block;
+  }
+  void *new_end =
+      (void *)prev_used_block + sizeof(area) + prev_used_block->length;
+  void *heap_end = sbrk(0);
+  while (new_end < heap_end - PAGE_SIZE) {
+    sbrk(-PAGE_SIZE);
+    heap_end = sbrk(0);
+  }
+}
+
+bool an_free(void *ptr) {
+  my_stats *malloc_header = get_malloc_header();
+  while (malloc_header->my_simple_lock) {
+    sleep(1);
+  };
+  area *block = ptr - sizeof(area);
+  if (block->marker != BLOCK_MARKER) {
+    // the given pointer is not the start of any malloc block
+    return false;
+  } else {
+    block->in_use = false;
+    memset(ptr, 0, block->length);
+    if (block->next != NULL && (block->next)->in_use == false) {
+      // Next block is not used, we can merge them
+      area *backup = block->next;
+      // skip next block in linked list
+      block->next = block->next->next;
+      if (block->next != NULL) {
+        block->next->prev = block;
+      }
+      // current block adds the next block
+      block->length += sizeof(area) + backup->length;
+      // erase header and data
+      // TODO: here we have to take into account the bloody header of the malloc
+      // structure
+      memset((void *)backup, 0, sizeof(area) + backup->length);
+      // 10);
+    }
+    if (block->prev != NULL && (block->prev)->in_use == false) {
+      // previous block can be merged with current, so we delete current.
+      area *backup = block;
+      block = block->prev;
+      // previous block gets new extra size
+      block->length += sizeof(area) + backup->length;
+      // skip next block
+      block->next = backup->next;
+      // backward connection
+      if (block->next != NULL) {
+        block->next->prev = block;
+      }
+    }
+    reduce_heap_size_if_possible();
+  }
+  malloc_header->my_simple_lock = false;
+  return true;
+}
+
+area *find_last_block() {
+  my_stats *malloc_header = get_malloc_header();
   area *block = (area *)((char *)malloc_header + sizeof(my_stats));
   while (block->next != NULL) {
     block = block->next;
   }
   return block;
 }
-// Assumes that the magical bytes are at the beginning
+
 int *add_used_block(ssize_t size) {
   // long int *heap_start = &end;
   // format the heap_start with the shape of stats
-  assert(heap_start != NULL);
-  my_stats *malloc_header = (my_stats *)(heap_start);
-  assert(malloc_header->magical_bytes == MAGICAL_BYTES);
+  my_stats *malloc_header = get_malloc_header();
   while (malloc_header->my_simple_lock) {
     sleep(1);
   };
@@ -116,8 +200,8 @@ int *an_malloc(ssize_t size) {
   // First, we check if the magical bytes are at the beggining of the heap
   if (heap_start == NULL) {
     heap_start = sbrk(0);
+    sbrk(4096);
   }
-  sbrk(4096);
   char *heap_end = sbrk(0);
   // printf("Heap start is %p\n", heap_start);
   // printf("Heap end is %p\n", heap_end);
@@ -128,7 +212,7 @@ int *an_malloc(ssize_t size) {
     area *first_block = (area *)((char *)heap_start + sizeof(my_stats));
     first_block->marker = BLOCK_MARKER;
     first_block->in_use = false;
-    first_block->length = length;
+    first_block->length = length - sizeof(my_stats) - sizeof(area);
     first_block->next = NULL;
     first_block->prev = NULL;
   }
@@ -158,8 +242,25 @@ void test_bigger_than_available_malloc() {
   assert(*((uint8_t *)ptr + 4998) == (2499 & 0xFF));
 }
 
+void test_free() {
+  uint8_t *first = (uint8_t *)an_malloc(2048);
+  area *first_block = (void *)first - sizeof(area);
+  assert(first_block->next != NULL);
+  assert(first_block->length == 2048);
+  assert(first_block->next->length == PAGE_SIZE - sizeof(my_stats) -
+                                          (2 * sizeof(area)) -
+                                          first_block->length);
+  an_free(first);
+  assert(first_block->marker == BLOCK_MARKER);
+  assert(first_block->next == NULL);
+  assert(first_block->length == PAGE_SIZE - sizeof(my_stats) - sizeof(area));
+}
+
 void complex_set_of_malloc_calls() {
-  uint8_t *first = malloc(2048); // will leave another 2048 on the first page
+  uint8_t *first =
+      (uint8_t *)an_malloc(2048); // will leave another 2048 on the first page
+  uint8_t *second =
+      (uint8_t *)an_malloc(10000); // will need around two more pages
 }
 
 void call_test(void (*test_func)(), const char *msg) {
@@ -180,5 +281,7 @@ void call_test(void (*test_func)(), const char *msg) {
 int main() {
   call_test(test_basic_malloc, "Basic Malloc");
   call_test(test_bigger_than_available_malloc, "Request more memory Malloc");
+  call_test(test_free, "Basic Free");
+  // test_free();
   debug_log("DONE");
 }
