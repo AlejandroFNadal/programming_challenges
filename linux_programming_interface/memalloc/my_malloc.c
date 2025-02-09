@@ -85,31 +85,30 @@ int *add_used_block(ssize_t size) {
   }
   // no big enough blocks.
   if (smallest_block == NULL) {
-    sbrk(4096);
-    // not working due to my very nice lock. Selflocked
     area *last_block = find_last_block();
-    last_block->length += 4096;
-    return add_used_block(size);
+    while (last_block->length < size) {
+      sbrk(4096);
+      last_block->length += 4096;
+    }
+    smallest_block = last_block;
   }
   // found a block
-  if (smallest_block != NULL) {
-    smallest_block->in_use = true;
-    // create a new block, which will be free
-    // only create if the size is big enough
-    int remaining_size = smallest_block->length - size - sizeof(area);
-    if (remaining_size > 0) {
-      area *new_block = (area *)((char *)smallest_block + sizeof(area) + size);
-      new_block->marker = BLOCK_MARKER;
-      new_block->prev = smallest_block;
-      new_block->next = smallest_block->next;
-      if (new_block->next != NULL) {
-        (new_block->next)->prev = new_block;
-      }
-      smallest_block->next = new_block;
-      new_block->length = remaining_size;
+  smallest_block->in_use = true;
+  // create a new block, which will be free
+  // only create if the size is big enough
+  int remaining_size = smallest_block->length - size - sizeof(area);
+  if (remaining_size > 0) {
+    area *new_block = (area *)((char *)smallest_block + sizeof(area) + size);
+    new_block->marker = BLOCK_MARKER;
+    new_block->prev = smallest_block;
+    new_block->next = smallest_block->next;
+    if (new_block->next != NULL) {
+      (new_block->next)->prev = new_block;
     }
-    smallest_block->length = size;
+    smallest_block->next = new_block;
+    new_block->length = remaining_size;
   }
+  smallest_block->length = size;
   malloc_header->my_simple_lock = false;
   return (int *)((char *)smallest_block + sizeof(area));
 }
@@ -137,15 +136,30 @@ int *an_malloc(ssize_t size) {
 }
 
 void test_basic_malloc() {
-  void *ptr = an_malloc(1);
-  area *first_block = ptr - sizeof(area);
+  char *ptr = (char *)an_malloc(1);
+  area *first_block = (void *)ptr - sizeof(area);
   assert(first_block->marker == BLOCK_MARKER);
+  *ptr = 'C';
+  assert(*ptr == 'C');
 }
 
 void test_bigger_than_available_malloc() {
-  void *ptr = an_malloc(5000);
-  area *first_block = ptr - sizeof(area);
+  uint16_t *ptr = (uint16_t *)an_malloc(5000);
+  area *first_block = (void *)ptr - sizeof(area);
+  for (uint16_t i = 0; i <= 2499; i = i + 1) {
+    *(ptr + i) = i;
+  }
   assert(first_block->marker == BLOCK_MARKER);
+  assert(*ptr == 0);
+  assert(*(ptr + 2) == 2);
+  assert(*(ptr + 2499) == 2499);
+  // little endinan vallid only
+  assert(*((uint8_t *)ptr + 4999) == (2499 >> 8));
+  assert(*((uint8_t *)ptr + 4998) == (2499 & 0xFF));
+}
+
+void complex_set_of_malloc_calls() {
+  uint8_t *first = malloc(2048); // will leave another 2048 on the first page
 }
 
 void call_test(void (*test_func)(), const char *msg) {
@@ -164,8 +178,7 @@ void call_test(void (*test_func)(), const char *msg) {
   }
 }
 int main() {
-  // call_test(test_basic_malloc, "Basic Malloc");
-  // call_test(test_bigger_than_available_malloc, "Request more memory Malloc");
-  test_bigger_than_available_malloc();
+  call_test(test_basic_malloc, "Basic Malloc");
+  call_test(test_bigger_than_available_malloc, "Request more memory Malloc");
   debug_log("DONE");
 }
