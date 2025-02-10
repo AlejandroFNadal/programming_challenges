@@ -37,7 +37,8 @@ struct free_area {
 struct stats {
   int magical_bytes;
   bool my_simple_lock;
-  int amount_of_blocks;
+  uint32_t amount_of_blocks;
+  uint16_t amount_of_pages;
 };
 typedef struct stats my_stats;
 typedef struct free_area area;
@@ -86,7 +87,11 @@ void reduce_heap_size_if_possible() {
   while (new_end < heap_end - PAGE_SIZE) {
     sbrk(-PAGE_SIZE);
     heap_end = sbrk(0);
+    my_stats *malloc_header = get_malloc_header();
+    malloc_header->amount_of_pages -= 1;
   }
+  prev_used_block->next = NULL;
+  prev_used_block->length = heap_end - (void *)prev_used_block - sizeof(area);
 }
 
 bool an_free(void *ptr) {
@@ -115,6 +120,7 @@ bool an_free(void *ptr) {
       // TODO: here we have to take into account the bloody header of the malloc
       // structure
       memset((void *)backup, 0, sizeof(area) + backup->length);
+      malloc_header->amount_of_blocks -= 1;
       // 10);
     }
     if (block->prev != NULL && (block->prev)->in_use == false) {
@@ -129,6 +135,7 @@ bool an_free(void *ptr) {
       if (block->next != NULL) {
         block->next->prev = block;
       }
+      malloc_header->amount_of_blocks -= 1;
     }
     reduce_heap_size_if_possible();
   }
@@ -173,6 +180,7 @@ int *add_used_block(ssize_t size) {
     while (last_block->length < size) {
       sbrk(4096);
       last_block->length += 4096;
+      malloc_header->amount_of_pages += 1;
     }
     smallest_block = last_block;
   }
@@ -182,6 +190,7 @@ int *add_used_block(ssize_t size) {
   // only create if the size is big enough
   int remaining_size = smallest_block->length - size - sizeof(area);
   if (remaining_size > 0) {
+    malloc_header->amount_of_blocks += 1;
     area *new_block = (area *)((char *)smallest_block + sizeof(area) + size);
     new_block->marker = BLOCK_MARKER;
     new_block->prev = smallest_block;
@@ -209,6 +218,9 @@ int *an_malloc(ssize_t size) {
   // printf("Heap size in KB is %ld\n", length / 1024);
   if ((*heap_start) != MAGICAL_BYTES) {
     *(heap_start) = MAGICAL_BYTES;
+    my_stats *malloc_header = (my_stats *)heap_start;
+    malloc_header->amount_of_blocks = 1;
+    malloc_header->amount_of_pages = 1;
     area *first_block = (area *)((char *)heap_start + sizeof(my_stats));
     first_block->marker = BLOCK_MARKER;
     first_block->in_use = false;
@@ -256,11 +268,45 @@ void test_free() {
   assert(first_block->length == PAGE_SIZE - sizeof(my_stats) - sizeof(area));
 }
 
-void complex_set_of_malloc_calls() {
+void complex_set_of_malloc_and_free_calls() {
   uint8_t *first =
       (uint8_t *)an_malloc(2048); // will leave another 2048 on the first page
   uint8_t *second =
       (uint8_t *)an_malloc(10000); // will need around two more pages
+  my_stats *malloc_header = get_malloc_header();
+  assert(malloc_header->amount_of_pages == 3);
+  assert(malloc_header->amount_of_blocks == 3);
+  an_free(second);
+  assert(malloc_header->amount_of_pages == 1);
+  assert(malloc_header->amount_of_blocks == 2);
+  int heap_size = sbrk(0) - (void *)heap_start;
+  assert(heap_size == PAGE_SIZE);
+  // test block unification, add three blocks, free the left, free the right,
+  // and then free the middle
+  uint8_t *third = (uint8_t *)an_malloc(1000);
+  assert(malloc_header->amount_of_pages == 1);
+  assert(malloc_header->amount_of_blocks == 3);
+  uint8_t *fourth = (uint8_t *)an_malloc(5000);
+  assert(malloc_header->amount_of_pages == 2);
+  assert(malloc_header->amount_of_blocks == 4);
+  uint8_t *fifth = (uint8_t *)an_malloc(1000);
+  assert(malloc_header->amount_of_pages == 2);
+  assert(malloc_header->amount_of_blocks == 5);
+  uint8_t *sixth = (uint8_t *)an_malloc(
+      1000); // just as buffer between the end and the fifth block
+  assert(malloc_header->amount_of_pages == 2);
+  assert(malloc_header->amount_of_blocks == 6);
+  an_free(third);
+  assert(malloc_header->amount_of_pages == 2);
+  assert(malloc_header->amount_of_blocks == 6); // because we have a free block
+  an_free(fifth);
+  assert(malloc_header->amount_of_pages == 2);
+  assert(malloc_header->amount_of_blocks == 6);
+  an_free(fourth);
+  assert(malloc_header->amount_of_pages == 2); // WRONG, should be 1, fix
+  assert(malloc_header->amount_of_blocks ==
+         5); // WRONG, should be 3, blocks fourth fifth and sixth should have
+             // unified
 }
 
 void call_test(void (*test_func)(), const char *msg) {
@@ -279,9 +325,11 @@ void call_test(void (*test_func)(), const char *msg) {
   }
 }
 int main() {
+  complex_set_of_malloc_and_free_calls();
   call_test(test_basic_malloc, "Basic Malloc");
   call_test(test_bigger_than_available_malloc, "Request more memory Malloc");
   call_test(test_free, "Basic Free");
+  call_test(complex_set_of_malloc_and_free_calls, "Complex");
   // test_free();
   debug_log("DONE");
 }
