@@ -1,0 +1,6 @@
+Is a process with the following user IDs privileged? Explain your answer.
+real=0 effective=1000 saved=1000 file-system=1000
+
+
+No, because the important one is the effective user id. This means that most likely, the owner of the process is a non privileged user,
+and the process has the set-uid bit set.  Also, the saved user id is not 0, so it cannot return to it.

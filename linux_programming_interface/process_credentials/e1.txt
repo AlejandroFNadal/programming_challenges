@@ -1,0 +1,20 @@
+Assume in each of the following cases that the initial set of process user IDs is
+real=1000 effective=0 saved=0 file-system=0. What would be the state of the user IDs
+after the following calls?
+
+a) setuid(2000);
+b) setreuid(–1, 2000); // so this one changes saved but euid does not. 
+c) seteuid(2000); 
+d) setfsuid(2000);
+e) setresuid(–1, 2000, 3000);
+
+
+Responses:
+a. real = 2000 effective = 2000, saved = 2000
+b. real = 1000 effective = 2000, saved = 2000 // not clear why the saved changes 
+c. real = 1000, efective = 2000, saved = 0 
+d. fs = 2000
+e. real= 1000, effective = 2000, saved = 3000
+
+To test my results, I asked GPT to make a piece of code that would make the calls. I gave the executable ownership to root and defined the u+s bits so 
+that the program would run with root permissions.
