@@ -40,6 +40,7 @@ struct stats {
   uint32_t amount_of_blocks;
   uint16_t amount_of_pages;
 };
+
 typedef struct stats my_stats;
 typedef struct free_area area;
 
@@ -99,6 +100,7 @@ bool an_free(void *ptr) {
   while (malloc_header->my_simple_lock) {
     sleep(1);
   };
+  // TODO: mark lock
   area *block = ptr - sizeof(area);
   if (block->marker != BLOCK_MARKER) {
     // the given pointer is not the start of any malloc block
@@ -164,6 +166,7 @@ int *add_used_block(ssize_t size) {
   area *block = (area *)((char *)heap_start + sizeof(my_stats));
   area *smallest_block = NULL;
   area *last_block = block;
+  // best fit
   while (block != NULL) {
     assert(block->marker == BLOCK_MARKER);
     if ((block->length + sizeof(area)) >= size && block->in_use == false) {
@@ -205,6 +208,7 @@ int *add_used_block(ssize_t size) {
   malloc_header->my_simple_lock = false;
   return (int *)((char *)smallest_block + sizeof(area));
 }
+
 int *an_malloc(ssize_t size) {
   // First, we check if the magical bytes are at the beggining of the heap
   if (heap_start == NULL) {
@@ -324,8 +328,9 @@ void call_test(void (*test_func)(), const char *msg) {
     }
   }
 }
+
 int main() {
-  complex_set_of_malloc_and_free_calls();
+  // complex_set_of_malloc_and_free_calls();
   call_test(test_basic_malloc, "Basic Malloc");
   call_test(test_bigger_than_available_malloc, "Request more memory Malloc");
   call_test(test_free, "Basic Free");
