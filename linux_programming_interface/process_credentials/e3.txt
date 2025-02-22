@@ -1,0 +1,54 @@
+Created a second user, with non root permisions, to test adding groups.
+
+- Running with my own user, with non sudo, it fails
+- Running with my own user, with sudo permissions, it works, but the amount of
+groups does not change because the console already has those groups.
+- Running with the user "ariel" which I have made root:
+
+```
+ariel@trantor:/home/ale/Documents/programming_challenges/linux_programming_interface/process_credentials$ sudo ./init_groups.out 
+[sudo] Passwort für ariel: 
+
+Before calling an_init_groups, current groups 1Group Name adm
+Member ale GID: 4
+Group Name cdrom
+Member ale GID: 24
+Group Name sudo
+Member ale GID: 27
+Group Name audio
+Member ale GID: 29
+Group Name dip
+Member ale GID: 30
+Group Name video
+Member ale GID: 44
+Group Name plugdev
+Member ale GID: 46
+Group Name systemd-journal
+Member ale GID: 101
+Group Name kvm
+Member ale GID: 110
+Group Name bluetooth
+Member ale GID: 116
+Group Name netdev
+Member ale GID: 121
+Group Name lpadmin
+Member ale GID: 124
+Group Name vboxusers
+Member ale GID: 1000
+Group Name ollama
+Member ale GID: 998
+Group Name nordvpn
+Member ale GID: 1003
+Successfully added groups
+After calling an_init_groups, current groups 16
+
+```
+It is amazing also to see the delay and the groups being added.
+
+The user only has the following groups:
+
+```
+ariel@trantor:/home/ale/Documents/programming_challenges/linux_programming_interface/process_credentials$ groups
+ariel sudo
+
+```
