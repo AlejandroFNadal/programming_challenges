@@ -71,6 +71,11 @@ area *find_previous_used_block(area *ptr) {
   return NULL;
 }
 
+area *find_first_block() {
+  my_stats *malloc_header = get_malloc_header();
+  return (area *)((char *)malloc_header + sizeof(my_stats));
+}
+
 void reduce_heap_size_if_possible() {
   area *last_block = find_last_block();
   area *prev_used_block = find_previous_used_block(last_block);
@@ -82,8 +87,7 @@ void reduce_heap_size_if_possible() {
     }
     prev_used_block = last_block;
   }
-  void *new_end =
-      (void *)prev_used_block + sizeof(area) + prev_used_block->length;
+  void *new_end = (void *)prev_used_block + sizeof(area) + prev_used_block->length;
   void *heap_end = sbrk(0);
   while (new_end < heap_end - PAGE_SIZE) {
     sbrk(-PAGE_SIZE);
@@ -91,8 +95,17 @@ void reduce_heap_size_if_possible() {
     my_stats *malloc_header = get_malloc_header();
     malloc_header->amount_of_pages -= 1;
   }
-  prev_used_block->next = NULL;
-  prev_used_block->length = heap_end - (void *)prev_used_block - sizeof(area);
+  // Now, in most cases, there is a gap between the last used block and the end of the heap.
+  // If there is enough space, we can inyect there an empty block. At least, we write 1 element in the block
+  if (heap_end - new_end > sizeof(area) + 1) {
+    area *new_not_used_block = (area *)new_end;
+    new_not_used_block->marker = BLOCK_MARKER;
+    new_not_used_block->in_use = false;
+    new_not_used_block->prev = prev_used_block;
+    new_not_used_block->next = NULL;
+    new_not_used_block->length = heap_end - new_end - sizeof(area);
+    prev_used_block->next = new_not_used_block;
+  }
 }
 
 bool an_free(void *ptr) {
@@ -189,21 +202,27 @@ int *add_used_block(ssize_t size) {
   }
   // found a block
   smallest_block->in_use = true;
-  // create a new block, which will be free
-  // only create if the size is big enough
-  int remaining_size = smallest_block->length - size - sizeof(area);
-  if (remaining_size > 0) {
-    malloc_header->amount_of_blocks += 1;
-    area *new_block = (area *)((char *)smallest_block + sizeof(area) + size);
-    new_block->marker = BLOCK_MARKER;
-    new_block->prev = smallest_block;
-    new_block->next = smallest_block->next;
-    if (new_block->next != NULL) {
-      (new_block->next)->prev = new_block;
-    }
-    smallest_block->next = new_block;
-    new_block->length = remaining_size;
+  // create a new block, which will be free. The list always must end on a free block.
+  // The size of area header is part of the check because it will need space too for the new block.
+  // Also, at least one byte is needed for the new block's content
+  int must_have_size = smallest_block->length - size - sizeof(area) - 1;
+  if (must_have_size <= 0) {
+    sbrk(4096);
+    malloc_header->amount_of_pages += 1;
+    last_block->length += 4096;
+    must_have_size = smallest_block->length - size - sizeof(area) - 1;
   }
+  int remaining_size = must_have_size + 1;
+  malloc_header->amount_of_blocks += 1;
+  area *new_block = (area *)((char *)smallest_block + sizeof(area) + size);
+  new_block->marker = BLOCK_MARKER;
+  new_block->prev = smallest_block;
+  new_block->next = smallest_block->next;
+  if (new_block->next != NULL) {
+    (new_block->next)->prev = new_block;
+  }
+  smallest_block->next = new_block;
+  new_block->length = remaining_size;
   smallest_block->length = size;
   malloc_header->my_simple_lock = false;
   return (int *)((char *)smallest_block + sizeof(area));
@@ -263,9 +282,11 @@ void test_free() {
   area *first_block = (void *)first - sizeof(area);
   assert(first_block->next != NULL);
   assert(first_block->length == 2048);
-  assert(first_block->next->length == PAGE_SIZE - sizeof(my_stats) -
-                                          (2 * sizeof(area)) -
-                                          first_block->length);
+  area *second_block = first_block->next;
+  assert(second_block->marker == BLOCK_MARKER);
+  assert(second_block->in_use == false);
+  assert(second_block->next == NULL);
+  assert(second_block->length == PAGE_SIZE - sizeof(my_stats) - (2 * sizeof(area)) - first_block->length);
   an_free(first);
   assert(first_block->marker == BLOCK_MARKER);
   assert(first_block->next == NULL);
@@ -273,10 +294,18 @@ void test_free() {
 }
 
 void complex_set_of_malloc_and_free_calls() {
-  uint8_t *first =
-      (uint8_t *)an_malloc(2048); // will leave another 2048 on the first page
-  uint8_t *second =
-      (uint8_t *)an_malloc(10000); // will need around two more pages
+  uint8_t *first = (uint8_t *)an_malloc(2048); // will leave another 2048 on the first page
+  area *first_block = find_first_block();
+  assert(first_block->length == 2048);
+  area *second_block = first_block->next;
+  assert(second_block->length == PAGE_SIZE - sizeof(my_stats) - 2 * sizeof(area) - first_block->length);
+  assert(second_block->next == NULL);
+  assert(second_block->prev == first_block);
+  uint8_t *second = (uint8_t *)an_malloc(10000); // will need around two more pages
+  assert(second_block->length == 10000);
+  assert(second_block->next != NULL);
+  area *third_block = second_block->next;
+  assert(third_block->length == 3 * PAGE_SIZE - sizeof(my_stats) - 3 * sizeof(area) - first_block->length - second_block->length);
   my_stats *malloc_header = get_malloc_header();
   assert(malloc_header->amount_of_pages == 3);
   assert(malloc_header->amount_of_blocks == 3);
@@ -285,32 +314,71 @@ void complex_set_of_malloc_and_free_calls() {
   assert(malloc_header->amount_of_blocks == 2);
   int heap_size = sbrk(0) - (void *)heap_start;
   assert(heap_size == PAGE_SIZE);
+  // The second block is whatever is left from the first page
+  assert(second_block->in_use == false);
+  assert(first_block->length == 2048);
+  assert(second_block->length == PAGE_SIZE - sizeof(my_stats) - 2 * sizeof(area) - first_block->length);
+  assert(second_block->next == NULL);
   // test block unification, add three blocks, free the left, free the right,
   // and then free the middle
   uint8_t *third = (uint8_t *)an_malloc(1000);
   assert(malloc_header->amount_of_pages == 1);
   assert(malloc_header->amount_of_blocks == 3);
+  // A third, empty block has been created
+  area *third_block_new = second_block->next;
+  assert(third_block_new->marker == BLOCK_MARKER);
+  assert(third_block_new->in_use == false);
+  // The second block, which before was longer, now is used for the call. The third block is the one that is empty
+  assert(second_block->length == 1000);
+  assert(third_block_new->length == PAGE_SIZE - sizeof(my_stats) - 3 * sizeof(area) - first_block->length - second_block->length);
+  assert(third_block_new->next == NULL);
   uint8_t *fourth = (uint8_t *)an_malloc(5000);
-  assert(malloc_header->amount_of_pages == 2);
+  // third block has been used for the fourth malloc call
+  assert(third_block_new->length == 5000);
+  assert(third_block_new->next != NULL);
+  assert(third_block_new->in_use == true);
+  assert(third_block_new->prev == second_block);
+  assert(malloc_header->amount_of_pages == 3); // the 5000 needed a second page, and then another page was needed to create a third block
   assert(malloc_header->amount_of_blocks == 4);
   uint8_t *fifth = (uint8_t *)an_malloc(1000);
-  assert(malloc_header->amount_of_pages == 2);
-  assert(malloc_header->amount_of_blocks == 5);
-  uint8_t *sixth = (uint8_t *)an_malloc(
-      1000); // just as buffer between the end and the fifth block
-  assert(malloc_header->amount_of_pages == 2);
+  // a new block has been created
+  area *fourth_block = third_block_new->next;
+  assert(fourth_block->marker == BLOCK_MARKER);
+  assert(third_block_new->length == 5000);
+  assert(fourth_block->length == 1000);
+  assert(fourth_block->in_use == true);
+  assert(fourth_block->next != NULL);
+  area *fifth_block = fourth_block->next;
+  assert(fifth_block->marker == BLOCK_MARKER);
+  assert(fifth_block->in_use == false);
+  assert(fifth_block->next == NULL);
+  assert(malloc_header->amount_of_pages == 3);
+  assert(malloc_header->amount_of_blocks == 5); // fifth malloc made a new block
+  uint8_t *sixth = (uint8_t *)an_malloc(1000);  // just as buffer between the end and the fifth block
+  assert(fifth_block->in_use == true);
+  assert(fifth_block->length == 1000);
+  assert(fifth_block->next != NULL);
+  assert(fifth_block->prev == fourth_block);
+  area *sixth_block = fifth_block->next;
+  assert(sixth_block->marker == BLOCK_MARKER);
+  assert(sixth_block->in_use == false);
+  assert(sixth_block->next == NULL);
+  assert(malloc_header->amount_of_pages == 3);
   assert(malloc_header->amount_of_blocks == 6);
   an_free(third);
-  assert(malloc_header->amount_of_pages == 2);
+  assert(second_block->in_use == false);
+  assert(second_block->length == 1000); // should be unchanged
+  assert(malloc_header->amount_of_pages == 3);
   assert(malloc_header->amount_of_blocks == 6); // because we have a free block
   an_free(fifth);
-  assert(malloc_header->amount_of_pages == 2);
+  assert(fourth_block->in_use == false);
+  assert(malloc_header->amount_of_pages == 3);
   assert(malloc_header->amount_of_blocks == 6);
   an_free(fourth);
-  assert(malloc_header->amount_of_pages == 2); // WRONG, should be 1, fix
-  assert(malloc_header->amount_of_blocks ==
-         5); // WRONG, should be 3, blocks fourth fifth and sixth should have
-             // unified
+  assert(third_block_new->in_use == false);
+  assert(malloc_header->amount_of_pages == 3);  // that is normal, as block six is still there
+  assert(malloc_header->amount_of_blocks == 3); // WRONG, should be 3, blocks fourth fifth and sixth should have
+                                                // unified
 }
 
 void call_test(void (*test_func)(), const char *msg) {
