@@ -1,0 +1,12 @@
+Writing from RAM (it is going to be mostly zeros) to a file, with a buffer.
+
+Amazing how this drops by one order of magnitude per every order of magnitude increase in buffer size.
+100 Megs
+Buffer size 10: 2.45 seconds 
+Buffer size 100: 0.27 seconds
+Buffer size 1000: 0.05 seconds
+Buffer size 10000: 0.02 seconds
+Buffer size 100000: 0.02 seconds // here it is where it stops improving
+
+You can do this test without this and just using the dd tool, show Oskar when we meet.
+
