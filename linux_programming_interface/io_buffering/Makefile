@@ -1,6 +1,6 @@
 include ../Makefile.inc
 
-GEN_EXE = write_bytes my_tail
+GEN_EXE = copy write_bytes my_tail
 
 LINUX_EXE = large_file
 
