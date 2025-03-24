@@ -2,6 +2,7 @@
 Program which imitates the behavior of the tail command in the GNU Coreutils
 */
 #include "../lib/tlpi_hdr.h"
+#include <assert.h>
 #include <bits/posix2_lim.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -22,36 +23,40 @@ void tail(char *filePath, int amount_lines) {
   char lineJump = '\n';
   // finding out what is the minimum requirement for a tool in my system for
   // line lenght
-  int lineLength = sysconf(LINE_MAX);
-
-  char **lines;
+  int lineLength = sysconf(_SC_LINE_MAX);
+  printf("Max length line %d\n", lineLength);
+  printf("Amount lines: %d\n", amount_lines);
+  char *lines[amount_lines];
   for (int i = 0; i < amount_lines; i++) {
-    lines[i] = (char *)malloc(lineLength * amount_lines);
+    lines[i] = (char *)malloc(lineLength);
     lines[i][0] = '\0';
   }
   // a buffer either the blockSize or the filesize, whatever is smaller
-  char *buffer = malloc(-min(blockSize, remainingFileSize));
-  while (lineJumpsFound < amount_lines) {
+  char *buffer = malloc(min(blockSize, remainingFileSize));
+  while (lineJumpsFound < amount_lines && remainingFileSize > 0) {
     int bufferSize = min(blockSize, remainingFileSize);
-    lseek(fd, -bufferSize, SEEK_CUR);
-    read(fd, buffer, bufferSize);
-    int i = bufferSize;
-    int lastLineJump = bufferSize;
+    int pos = lseek(fd, -bufferSize, SEEK_CUR);
+    assert(pos != -1);
+    pread(fd, buffer, bufferSize, pos);
+    int i = bufferSize - 1;
+    int lastLineJump = bufferSize - 1;
     while (i >= 0 && lineJumpsFound < amount_lines) {
       if (buffer[i] == lineJump) {
-        memcpy(lines[lineJumpsFound], &buffer[i], lastLineJump - i);
+        int sizeCopy = lastLineJump - i;
+        assert(sizeCopy >= 0);
+        memcpy(lines[lineJumpsFound], &buffer[i], sizeCopy);
         lineJumpsFound++;
+        lastLineJump = i;
       }
       i--;
     }
     remainingFileSize = remainingFileSize - bufferSize;
   }
-  for (int i = 0; i < amount_lines; i++) {
-    printf("%s\n", lines[i]);
+  for (int i = lineJumpsFound - 1; i >= 0; i--) {
+    printf("%s", lines[i]);
   }
 }
 int main(int argc, char *argv[]) {
-  int numLines;
-  numLines = getLong(argv[2], GN_GT_0, "n");
+  int numLines = atoi(argv[2]);
   tail(argv[1], numLines);
 }
