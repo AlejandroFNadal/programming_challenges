@@ -1,0 +1,8 @@
+What is the effect of the following statements?
+  fflush(fp); // It will flush the stdio buffer to which the stream is connected.
+  // If it is a read stream, it will discard all non read content.
+  // If it is a write stream, it will push the content of the buffer to the kernel write buffer, where the kernel
+  will also eventually push it to a file.
+  fsync(fileno(fp));
+  // Then, here, fileno will give us a file descriptor for the stream, and fsync will then take the kernel buffer and 
+  ensure the content goes to disk.
