@@ -22,7 +22,7 @@ void tail(char *filePath, int amount_lines) {
   int lineJumpsFound = 0;
   char lineJump = '\n';
   // finding out what is the minimum requirement for a tool in my system for
-  // line lenght
+  // line length
   int lineLength = sysconf(_SC_LINE_MAX);
   printf("Max length line %d\n", lineLength);
   printf("Amount lines: %d\n", amount_lines);
