@@ -1,0 +1,7 @@
+Explain why the output of the following code differs depending on whether
+standard output is redirected to a terminal or to a disk file.
+  printf("If I had more time, \n");
+  write(STDOUT_FILENO, "I would have written you a shorter letter.\n", 43);
+
+When writing to a terminal, stdio will do line buffering, and the output will be printed in order.
+On the other hand, when writing to a file, stdio could size buffering for the printf output, and the write could end up appearing earlier.
