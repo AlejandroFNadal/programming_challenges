@@ -243,16 +243,13 @@ int *add_used_block(ssize_t size) {
 }
 
 int *an_malloc(ssize_t size) {
-  // First, we check if the magical bytes are at the beggining of the heap
   if (heap_start == NULL) {
     heap_start = sbrk(0);
     sbrk(4096);
   }
   char *heap_end = sbrk(0);
-  // printf("Heap start is %p\n", heap_start);
-  // printf("Heap end is %p\n", heap_end);
   long int length = heap_end - heap_start;
-  // printf("Heap size in KB is %ld\n", length / 1024);
+  // First, we check if the magical bytes are at the beggining of the heap
   if ((*heap_start) != MAGICAL_BYTES) {
     *(heap_start) = MAGICAL_BYTES;
     my_stats *malloc_header = (my_stats *)heap_start;
@@ -286,7 +283,7 @@ void test_bigger_than_available_malloc() {
   assert(*ptr == 0);
   assert(*(ptr + 2) == 2);
   assert(*(ptr + 2499) == 2499);
-  // little endinan vallid only
+  // little endian valid only
   assert(*((uint8_t *)ptr + 4999) == (2499 >> 8));
   assert(*((uint8_t *)ptr + 4998) == (2499 & 0xFF));
 }
