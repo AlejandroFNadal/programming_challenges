@@ -1,0 +1,16 @@
+O_SYNC= false
+  Ext4
+    100Mb: The smaller the buffer size, the more syscalls
+     1    Buffersize: real 39.007s user    6.429s sys   32.552s
+     16   Buffersize: real 2.338s  user    0.468s sys   1.870s
+     1024 Buffersize:  149ms
+     2048 Buffersize:  131ms
+     4096 Buffersize:  130ms
+     8096 Buffersize:  131ms
+O_SYNC = true
+  Ext4
+    100Mb:
+      1  Buffersize:
+      16 Buffersize:
+      1024 Buffersize:
+      8096 Buffersize:
