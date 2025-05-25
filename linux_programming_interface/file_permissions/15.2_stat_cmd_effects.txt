@@ -1,0 +1,3 @@
+# The stat command
+
+The stat command must not change any of the three dates : access, modification, and metadata modification. If it did, it would always reply the current date/time.
