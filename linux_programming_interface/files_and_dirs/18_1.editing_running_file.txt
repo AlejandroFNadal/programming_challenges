@@ -1,0 +1,25 @@
+PROBLEM:
+
+In Section 4.3.2, we noted that it is not possible to open a file for writing if it is
+currently being executed (open() returns –1, with errno set to ETXTBSY). Nevertheless,
+it is possible to do the following from the shell:
+```
+$ cc -o longrunner longrunner.c
+$ ./longrunner &
+$ vi longrunner.c
+$ cc -o longrunner longrunner.c
+```
+- Leave running in background
+- Make some changes to the source code
+
+The last command overwrites the existing executable of the same name. How is this
+possible? (For a clue, use ls –li to look at the i-node number of the executable file
+after each compilation.)
+
+SOLUTION:
+
+GCC is creating a new file with a different inode. But I don't know whether the program is actually being deleted/unlinked somehow or if it just remains in memory. if it is deleted, then the restriction for writing makes very little sense.
+
+Also, I tested with echo. I can append to the file but I cannot edit the file. I wonder how that works.
+
+ASKED GPT: it says it is deleted, and that appending does not trigger ETXTBSY.
