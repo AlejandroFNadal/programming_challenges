@@ -26,11 +26,6 @@ void pop_stack(char *stack[], short unsigned int *stack_pointer) {
   }
 }
 
-void dotdot_operation(char *stack[], short unsigned int *stack_pointer) {
-  pop_stack(stack, stack_pointer);
-  pop_stack(stack, stack_pointer);
-}
-
 void print_stack(char *stack[]) {
   short unsigned int stack_pointer = 0;
   if (stack[0] == NULL) {
@@ -46,12 +41,13 @@ void print_stack(char *stack[]) {
 char *stack_to_string_until_a_pos(char *stack[], short unsigned int pos) {
   char *temp = malloc(PATH_MAX);
   short unsigned int stack_pointer = 0;
-  if (stack[0] == NULL) {
+  if (stack[0] == NULL || pos == 0) {
     temp[0] = '/';
   }
   while (stack[stack_pointer] != NULL && stack_pointer < pos) {
     strcat(temp, "/");
     strcat(temp, stack[stack_pointer]);
+    stack_pointer += 1;
   }
   return temp;
 }
@@ -83,7 +79,6 @@ int main(int argc, char **argv) {
   while ((stack[stack_index] = strtok_r(input_string, &delimiter, &save_ptr)) !=
          NULL) {
     if (stack[stack_index][0] == '.' && stack[stack_index][1] == '.') {
-      printf("dotdot\n");
       // dotdot_operation(stack, &stack_index);
       pop_stack(stack, &stack_index);
       pop_stack(stack, &stack_index);
@@ -95,9 +90,8 @@ int main(int argc, char **argv) {
     input_string = NULL;
     char *path_minus_one = stack_to_string_until_a_pos(stack, stack_index - 1);
     struct stat statbuf;
-    printf("path_minus_one %s\n", path_minus_one);
     if (stat(path_minus_one, &statbuf) == -1) {
-      printf("Path does not exist");
+      printf("Path does not exist\n");
       return -1;
     }
   }
