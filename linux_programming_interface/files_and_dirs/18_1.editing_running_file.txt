@@ -23,3 +23,5 @@ GCC is creating a new file with a different inode. But I don't know whether the 
 Also, I tested with echo. I can append to the file but I cannot edit the file. I wonder how that works.
 
 ASKED GPT: it says it is deleted, and that appending does not trigger ETXTBSY.
+
+GPT is wrong! The file will not be deleted while there is a file descriptor for it.

@@ -1,0 +1,20 @@
+# PROBLEM
+
+Why does the call to chmod() in the following code fail?
+
+mkdir("test", S_IRUSR | S_IWUSR | S_IXUSR);
+chdir("test");
+fd = open("myfile", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+symlink("myfile", "../mylink");
+chmod("../mylink", S_IRUSR);
+
+# My Solution -> Incorrect :(
+
+CHMOD will change the file and not the link, but the file is currently written as read write, so you cannot just remove the write flag whilst open.
+
+# Book:
+Nop, I was wrong. The symlink is dangling. The target of the symlink has to be defined based on the location of mylink. that means it should be:
+
+symlink("test/myfile" "../mylink")
+
+because the link is located outside test.
