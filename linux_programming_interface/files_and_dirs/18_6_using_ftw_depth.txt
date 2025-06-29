@@ -1,0 +1,22 @@
+Modify the program in Listing 18-3 (nftw_dir_tree.c) to use the FTW_DEPTH flag. Note
+the difference in the order in which the directory tree is traversed.
+
+Normal results:
+dir_tree test_dir/
+d D    19165190  test_dir
+- F    19165209      1.txt
+d D    19300239      nested_dir
+- F    19300240          3.txt
+- F    19300243          4.txt
+- F    19165210      2.txt
+
+With FTW_DEPTH flag:
+
+- F    19165209      1.txt
+- F    19300240          3.txt
+- F    19300243          4.txt
+d DP   19300239      nested_dir
+- F    19165210      2.txt
+d DP   19165190  test_dir
+
+As it can be seen, the order changes, the system goes deep firsth whenever it can
