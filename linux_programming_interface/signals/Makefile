@@ -1,6 +1,6 @@
 include ../Makefile.inc
 
-GEN_EXE = sig_receiver sig_receiver_ej1
+GEN_EXE = sig_receiver sig_receiver_ej1 you_cannot_interrupt_me
 	
 LINUX_EXE = signalfd_sigval
 
